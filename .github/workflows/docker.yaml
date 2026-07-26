@@ -20,9 +20,6 @@ jobs:
       matrix:
         arch: [ i686 ]
         build_type: [ release, debug ]
-    permissions:
-      contents: read
-      packages: write
     steps:
 
       - name: Set MXE build type
