@@ -1,0 +1,57 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Run once a day at midnight UTC
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/strawberrymusicplayer/strawberry-mxe.git
+          git fetch upstream master
+
+      - name: Merge upstream changes
+        run: |
+          if ! git merge upstream/master --no-commit --no-ff; then
+            echo "Merge had conflicts."
+            
+            # Keep our version of workflows to resolve any conflicts there
+            git checkout HEAD -- .github/workflows || true
+            git add .github/workflows || true
+            
+            # Check if there are other unmerged files
+            if git ls-files -u | grep -q .; then
+              echo "There are other conflicts that require manual resolution. Aborting."
+              git merge --abort
+              exit 1
+            fi
+          fi
+          
+          # Force workflows to be exactly as they are in HEAD, both in index and worktree
+          git checkout HEAD -- .github/workflows || true
+          git reset HEAD -- .github/workflows || true
+          
+          # Check if there are any changes to commit after excluding workflows
+          if git diff --cached --quiet; then
+            echo "No changes to commit after excluding workflows."
+            git merge --abort || true
+          else
+            git commit -m "chore: sync upstream master"
+            git push origin master
+          fi
